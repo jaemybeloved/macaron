@@ -21,8 +21,11 @@ import argparse
 import discord
 import json
 import logging
+import pathlib
 import psutil
+import requests
 import time
+import whisper
 
 from discord import app_commands
 from os import getpid
@@ -60,7 +63,8 @@ class Macaron(discord.Client):
     def __init__(self, *, intents: discord.Intents) -> void:
         super().__init__(intents=intents)
 
-        self.start_time = time.time()
+        self.model: whisper.Whisper = whisper.load_model("small")
+        self.start_time: float = time.time()
 
         self.setup_logger()
         self.setup_tree()
@@ -103,7 +107,7 @@ class Macaron(discord.Client):
     def setup_tree(self) -> void:
         self.tree = app_commands.CommandTree(self)
 
-        @self.tree.command(name="info", 
+        @self.tree.command(name="info",
                            description="Show information about this bot.")
         async def info(interaction: discord.Interaction) -> void:
             embed: discord.Embed = discord.Embed(
@@ -148,6 +152,59 @@ class Macaron(discord.Client):
             await interaction.response.send_message(
                 embed=embed, view=view, ephemeral=False
             )
+
+        pathlib.Path("_cache").mkdir(parents=True, exist_ok=True)
+
+        @self.tree.context_menu(name="Transcribe!")
+        async def transcribe(interaction: discord.Interaction,
+                             message: discord.Message) -> void:
+            await interaction.response.defer(ephemeral=False, thinking=True)
+
+            if not message or not message.attachments:
+                embed: discord.Embed = discord.Embed(
+                    description="Please refer to a valid voice message!"
+                )
+
+                embed.timestamp = interaction.created_at
+
+                embed.set_author(
+                    name=self.user.name, 
+                    icon_url=self.user.display_avatar
+                )
+
+                await interaction.followup.send(embed=embed)
+            else:
+                response: requests.Response = requests.get(
+                    message.attachments[0].url)
+                
+                file_path: str = f"_cache/audio-{message.id}.ogg"
+                
+                with open(file_path, "wb") as file:
+                    file.write(response.content)
+
+                pred: dict[any] = self.model.transcribe(file_path)
+
+                embed: discord.Embed = discord.Embed(
+                    title="Prediction",
+                    description=f"{pred['text']}"
+                )
+
+                embed.timestamp = interaction.created_at
+
+                embed.add_field(name="Language", 
+                            value=f"`{pred['language']}`")
+                
+                embed.add_field(name="Temperature", 
+                            value=f"`{pred['segments'][0]['temperature']}`")
+
+                embed.set_author(
+                    name=self.user.name, 
+                    icon_url=self.user.display_avatar
+                )
+
+                await interaction.followup.send(embed=embed)
+
+                pathlib.Path(file_path).unlink(missing_ok=True)
 
 
 # Functions ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>
