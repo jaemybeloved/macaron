@@ -1,0 +1,6 @@
+{
+    "discord": {
+        "application-id": "YOUR-APPLICATION-ID",
+        "token": "YOUR-BOT-TOKEN"
+    }
+}
