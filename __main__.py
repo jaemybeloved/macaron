@@ -72,17 +72,12 @@ class Macaron(discord.Client):
 
     # @override
     async def on_ready(self) -> void:
-        self.logger.info(f"logged in as '{self.user}'")
-
-
-    # @override
-    async def setup_hook(self) -> void:
-        global guild
-
-        if guild:
+        for guild in self.guilds:
             self.tree.copy_global_to(guild=guild)
 
             await self.tree.sync(guild=guild)
+
+        self.logger.info(f"logged in as '{self.user}'")
 
 
     def setup_logger(self) -> void:
@@ -226,18 +221,6 @@ def parse_arguments() -> void:
     args = parser.parse_args()
 
     config = json.loads(args.config.read())
-
-    value: str = ""
-    
-    try:
-        value: str = config["debug"]["guild"]
-    except KeyError:
-        pass
-
-    if value.isdigit():
-        global guild
-
-        guild = discord.Object(id=int(value))
 
 
 # Entry Point ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~>
